@@ -34,7 +34,7 @@ fn get_diff(mut left: Vec<usize>, mut right: Vec<usize>) -> usize {
 fn count_occurrences(left: &[usize], right: &[usize]) -> usize {
     let mut occurrences: HashMap<usize, usize> = HashMap::new();
 
-    for n in left.iter().collect::<HashSet<usize>>() {
+    for n in left {
         if occurrences.contains_key(n) {
             continue;
         }
