@@ -2,12 +2,15 @@ use std::time::Instant;
 
 mod d01;
 mod d02;
+mod d03;
 
 fn main() {
     aoc_result!(1, 1, d01::get_solution_1());
-    aoc_result!(2, 2, d01::get_solution_2());
-    aoc_result!(1, 1, d02::get_solution_1());
+    aoc_result!(1, 2, d01::get_solution_2());
+    aoc_result!(2, 1, d02::get_solution_1());
     aoc_result!(2, 2, d02::get_solution_2());
+    aoc_result!(3, 1, d03::get_solution_1());
+    aoc_result!(3, 2, d03::get_solution_2());
 }
 
 #[macro_export]
