@@ -1,7 +1,8 @@
 use std::iter::Peekable;
 
-static DATA: &str = include_str!("../data/d03");
+#[allow(dead_code)]
 static TEST: &str = include_str!("../data/d03_test");
+static DATA: &str = include_str!("../data/d03");
 
 #[derive(Debug, Clone, Copy)]
 enum Instruction {
