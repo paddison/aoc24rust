@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 static TEST: &str = include_str!("../data/d05_test");
+static INPUT: &str = include_str!("../data/d05");
 
 type Data = (HashMap<usize, Vec<usize>>, Vec<Vec<usize>>);
 
@@ -23,7 +24,7 @@ fn parse(input: &str) -> Data {
 
     for line in &mut lines {
         if let Some((from, to)) = get_pair(line) {
-            graph.entry(from).or_insert(vec![to]).push(to);
+            graph.entry(from).or_insert(Vec::new()).push(to);
         } else {
             assert_eq!("", line);
             break;
@@ -37,8 +38,48 @@ fn parse(input: &str) -> Data {
     (graph, lists)
 }
 
+fn is_ordered(graph: &HashMap<usize, Vec<usize>>, list: &[usize]) -> bool {
+    assert!(!list.is_empty());
+    // do a search through the graph.
+    // if a page can be found, it is in order.
+    // if not, it is not in order
+    let mut frontier = vec![list[0]];
+    let mut cur = 1;
+    let mut ordered = false;
+
+    while let Some(node) = frontier.pop() {
+        if let Some(neighbors) = graph.get(&node) {
+            if neighbors.contains(&list[cur]) {
+                frontier.push(list[cur]);
+                cur += 1;
+                if cur == list.len() {
+                    ordered = true;
+                    break;
+                }
+            } else {
+                for neighbor in neighbors {
+                    frontier.push(*neighbor);
+                }
+            }
+        }
+    }
+
+    ordered
+}
+
 pub fn get_solution_1() -> usize {
-    let data = parse(TEST);
-    println!("{data:?}");
+    let (graph, lists) = parse(INPUT);
+    println!("{graph:?}");
+    println!("{lists:?}");
+
+    let filtered: Vec<Vec<usize>> = lists
+        .iter()
+        .filter(|list| is_ordered(&graph, list))
+        .cloned()
+        .collect();
+
+    assert_ne!(lists.len(), filtered.len());
+    //.map(|list| list[list.len() / 2])
+    //.sum()
     0
 }
