@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+#[allow(dead_code)]
 static TEST: &str = include_str!("../data/d05_test");
 static INPUT: &str = include_str!("../data/d05");
 
@@ -56,10 +57,6 @@ fn is_ordered(graph: &HashMap<usize, Vec<usize>>, list: &[usize]) -> bool {
                     ordered = true;
                     break;
                 }
-            } else {
-                for neighbor in neighbors {
-                    frontier.push(*neighbor);
-                }
             }
         }
     }
@@ -69,17 +66,10 @@ fn is_ordered(graph: &HashMap<usize, Vec<usize>>, list: &[usize]) -> bool {
 
 pub fn get_solution_1() -> usize {
     let (graph, lists) = parse(INPUT);
-    println!("{graph:?}");
-    println!("{lists:?}");
 
-    let filtered: Vec<Vec<usize>> = lists
+    lists
         .iter()
         .filter(|list| is_ordered(&graph, list))
-        .cloned()
-        .collect();
-
-    assert_ne!(lists.len(), filtered.len());
-    //.map(|list| list[list.len() / 2])
-    //.sum()
-    0
+        .map(|list| list[list.len() / 2])
+        .sum()
 }
