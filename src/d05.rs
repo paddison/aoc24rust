@@ -64,12 +64,43 @@ fn is_ordered(graph: &HashMap<usize, Vec<usize>>, list: &[usize]) -> bool {
     ordered
 }
 
+fn sort(graph: &HashMap<usize, Vec<usize>>, mut list: Vec<usize>) -> Vec<usize> {
+    assert!(!is_ordered(graph, &list));
+
+    // Check if two elements are in right order.
+    // If not, swap them.
+    // I have no idea why this works, i was just guessing when implementing it
+    for i in 0..list.len() - 1 {
+        for j in i..list.len() {
+            let (a, b) = (list[i], list[j]);
+            if let Some(true) = graph.get(&b).map(|ns| ns.contains(&a)) {
+                list[i] = b;
+                list[j] = a;
+            }
+        }
+    }
+
+    assert!(is_ordered(graph, &list));
+    list
+}
+
 pub fn get_solution_1() -> usize {
     let (graph, lists) = parse(INPUT);
 
     lists
         .iter()
         .filter(|list| is_ordered(&graph, list))
+        .map(|list| list[list.len() / 2])
+        .sum()
+}
+
+pub fn get_solution_2() -> usize {
+    let (graph, lists) = parse(INPUT);
+
+    lists
+        .into_iter()
+        .filter(|list| !is_ordered(&graph, list))
+        .map(|list| sort(&graph, list))
         .map(|list| list[list.len() / 2])
         .sum()
 }
