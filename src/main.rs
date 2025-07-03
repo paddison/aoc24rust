@@ -5,6 +5,7 @@ mod d02;
 mod d03;
 mod d04;
 mod d05;
+mod d06;
 
 fn main() {
     aoc_result!(1, 1, d01::get_solution_1());
