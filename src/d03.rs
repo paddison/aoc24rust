@@ -1,7 +1,5 @@
 use std::iter::Peekable;
 
-#[allow(dead_code)]
-static TEST: &str = include_str!("../data/d03_test");
 static DATA: &str = include_str!("../data/d03");
 
 #[derive(Debug, Clone, Copy)]

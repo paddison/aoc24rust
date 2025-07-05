@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-#[allow(dead_code)]
-static TEST: &str = include_str!("../data/d05_test");
 static INPUT: &str = include_str!("../data/d05");
 
 type Data = (HashMap<usize, Vec<usize>>, Vec<Vec<usize>>);

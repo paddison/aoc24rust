@@ -18,6 +18,7 @@ fn main() {
     aoc_result!(4, 2, d04::get_solution_2());
     aoc_result!(5, 1, d05::get_solution_1());
     aoc_result!(5, 2, d05::get_solution_2());
+    aoc_result!(6, 1, d06::solve_1());
 }
 
 #[macro_export]

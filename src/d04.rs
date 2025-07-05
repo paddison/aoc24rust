@@ -1,5 +1,3 @@
-#[allow(dead_code)]
-static TEST: &str = include_str!("../data/d04_test");
 static DATA: &str = include_str!("../data/d04");
 
 const X_MAS_1: &str = "MSAMS";
