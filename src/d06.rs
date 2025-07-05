@@ -9,7 +9,7 @@ const LEFT: Point = Point { x: -1, y: 0 };
 const DOWN: Point = Point { x: 0, y: 1 };
 const RIGHT: Point = Point { x: 1, y: 0 };
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 enum Tile {
     Floor,
     Wall,
@@ -22,22 +22,28 @@ struct Map {
 }
 
 impl Map {
-    fn get(&self, idx: &Point) -> Option<&Tile> {
+    fn is_valid_idx(&self, idx: &Point) -> bool {
         let Point { x, y } = *idx;
-
-        #[allow(clippy::if_same_then_else)]
-        if x < 0 || y < 0 {
-            // check for negative index
-            None
-        } else if x as usize >= self.width || y as usize >= self.height {
-            // Check for out of bounds index
-            None
-        } else {
+        x >= 0 && y >= 0 && (x as usize) < self.width && (y as usize) < self.height
+    }
+    fn get(&self, idx: &Point) -> Option<&Tile> {
+        if self.is_valid_idx(idx) {
+            let Point { x, y } = *idx;
             Some(&self.tiles[x as usize + y as usize * self.width])
+        } else {
+            None
+        }
+    }
+
+    fn set(&mut self, idx: &Point, val: Tile) {
+        if self.is_valid_idx(idx) {
+            let Point { x, y } = *idx;
+            self.tiles[x as usize + y as usize * self.width] = val;
         }
     }
 }
 
+#[derive(Clone, Copy, Hash, Eq, PartialEq)]
 struct Guard {
     dir: Point, // directional vector
     pos: Point, // current position
@@ -197,6 +203,52 @@ fn parse_input(input: &str) -> State {
     }
 }
 
+fn is_cycle(state: &mut State) -> bool {
+    let mut seen = HashSet::<Guard>::new();
+
+    while let Some(_) = state.next() {
+        let g = state.guard;
+        if seen.contains(&g) {
+            return true;
+        } else {
+            seen.insert(state.guard);
+        }
+    }
+
+    false
+}
+
 pub fn solve_1() -> usize {
     parse_input(INPUT).collect::<HashSet<Point>>().len()
+}
+
+pub fn solve_2() -> usize {
+    let mut state = parse_input(INPUT);
+    let start = state.guard;
+    // I have to collect these into a Vec.
+    // If using a Hashset it sometimes leads to
+    // an off by one error (probably due to the order being unstable)
+    // and i haven't figured out why yet.
+    let mut visited = Vec::new();
+    (&mut state).for_each(|p| {
+        if !visited.contains(&p) {
+            visited.push(p);
+        }
+    });
+    let mut count = 0;
+
+    // Brute force approach
+    for point in visited {
+        state.map.set(&point, Tile::Wall);
+
+        if is_cycle(&mut state) {
+            count += 1;
+        }
+
+        // Reset the map
+        state.map.set(&point, Tile::Floor);
+        state.guard = start;
+    }
+
+    count
 }
