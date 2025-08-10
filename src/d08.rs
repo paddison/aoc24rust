@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 #[allow(dead_code)]
-static TEST: &str = include_str!("../data/d07_test");
-static INPUT: &str = include_str!("../data/d07");
+static TEST: &str = include_str!("../data/d08_test");
+static INPUT: &str = include_str!("../data/d08");
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 struct Point {
