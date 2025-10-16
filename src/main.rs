@@ -11,6 +11,7 @@ mod d08;
 mod d09;
 mod d10;
 mod d11;
+mod d12;
 
 fn main() {
     aoc_result!(1, 1, d01::get_solution_1());
@@ -35,6 +36,7 @@ fn main() {
     aoc_result!(10, 2, d10::solve_2());
     aoc_result!(11, 1, d11::solve_1());
     aoc_result!(11, 2, d11::solve_2());
+    aoc_result!(12, 1, d12::solve_1());
 }
 
 #[macro_export]
