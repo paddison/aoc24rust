@@ -4,6 +4,19 @@ use std::collections::{HashMap, HashSet};
 static TEST: &str = include_str!("../data/d12_test");
 static INPUT: &str = include_str!("../data/d12");
 
+const RIGHT: usize = 0;
+const DOWN: usize = 1;
+const LEFT: usize = 2;
+const UP: usize = 3;
+const NUMBER_OF_DIRECTIONS: usize = 4;
+
+const DIRECTIONS: [(usize, usize); NUMBER_OF_DIRECTIONS] = [
+    (1, 0),          // right
+    (0, usize::MAX), // down
+    (usize::MAX, 0), // left
+    (0, 1),          // up
+];
+
 #[derive(Debug)]
 struct Region {
     positions: Vec<(usize, usize)>,
@@ -27,6 +40,59 @@ impl Region {
 
         bla.values().sum::<usize>() * self.positions.len()
     }
+
+    fn determine_price_surrounding(&self) -> usize {
+        // Since we're parsing from top left to top right, the first position will always be on the
+        // top right.
+
+        // determine the circumference by "walking" along the edges of the region.
+        // for the top sides, check if up is available:
+        //  - yes: change direction to up
+        //  - no: check if right is available:
+        //    - yes: continue walking, go to first step. increase counter
+        //    - no: change direction to down.
+        //  when rotating counter clockwise go to the next tile, and increment
+        //  when rotating clockwise change state and increment
+        let start = self.positions.first().unwrap();
+        let lookup: HashSet<_> = self.positions.iter().copied().collect();
+        let mut current = start;
+        let mut current_direction = RIGHT;
+        let mut circumference = 1;
+
+        loop {
+            // check if rotating counter clockwise is possible
+            if let Some(counter_clockwise) = lookup.get(&add_positions(
+                current,
+                &DIRECTIONS[current_direction + NUMBER_OF_DIRECTIONS % NUMBER_OF_DIRECTIONS],
+            )) {
+                current_direction += NUMBER_OF_DIRECTIONS % NUMBER_OF_DIRECTIONS;
+                current = counter_clockwise;
+            } else if let Some(straight) =
+                lookup.get(&add_positions(current, &DIRECTIONS[current_direction]))
+            {
+                // try to go normally
+                current = straight;
+                circumference += 1;
+            } else {
+                // rotate counter clockwise
+                current_direction += 1 % NUMBER_OF_DIRECTIONS;
+                circumference += 1;
+            };
+
+            if current == start {
+                break;
+            }
+        }
+
+        circumference
+    }
+}
+
+fn add_positions(position: &(usize, usize), direction: &(usize, usize)) -> (usize, usize) {
+    (
+        position.0.wrapping_sub(direction.0),
+        position.1.wrapping_add(direction.1),
+    )
 }
 
 fn parse_input(input: &str) -> Vec<Vec<char>> {
