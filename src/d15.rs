@@ -1,4 +1,7 @@
-use std::ops::{Add, AddAssign};
+use std::{
+    marker::PhantomData,
+    ops::{Add, AddAssign},
+};
 
 static TEST: &str = include_str!("../data/d15_test");
 static INPUT: &str = include_str!("../data/d15");
@@ -107,14 +110,18 @@ impl AddAssign for Point {
     }
 }
 
+trait Tile: Clone + Copy {}
+
 #[derive(Clone, Copy)]
-enum Tile {
+enum Tile1 {
     Floor,
     Wall,
     Box,
 }
 
-impl From<char> for Tile {
+impl Tile for Tile1 {}
+
+impl From<char> for Tile1 {
     fn from(value: char) -> Self {
         match value {
             '#' => Self::Wall,
@@ -124,23 +131,43 @@ impl From<char> for Tile {
     }
 }
 
-impl From<Tile> for char {
-    fn from(value: Tile) -> Self {
+impl From<Tile1> for char {
+    fn from(value: Tile1) -> Self {
         match value {
-            Tile::Floor => '.',
-            Tile::Wall => '#',
-            Tile::Box => 'O',
+            Tile1::Floor => '.',
+            Tile1::Wall => '#',
+            Tile1::Box => 'O',
+        }
+    }
+}
+#[derive(Clone, Copy)]
+enum Tile2 {
+    Floor,
+    BoxLeft,
+    BoxRight,
+    Wall,
+}
+
+impl From<Tile2> for char {
+    fn from(value: Tile2) -> Self {
+        match value {
+            Tile2::Floor => '.',
+            Tile2::Wall => '#',
+            Tile2::BoxLeft => '[',
+            Tile2::BoxRight => ']',
         }
     }
 }
 
-struct Map {
-    _inner: Vec<Tile>,
+impl Tile for Tile2 {}
+
+struct Map<T: Tile> {
+    _inner: Vec<T>,
     width: usize,
     height: usize,
 }
 
-fn print(map: &Map, robot: &Robot) {
+fn print<T: Into<char> + Tile>(map: &Map<T>, robot: &Robot<T>) {
     let mut string = String::new();
 
     for y in 0..map.height {
@@ -159,34 +186,118 @@ fn print(map: &Map, robot: &Robot) {
     println!("{string}");
 }
 
-struct Robot {
-    position: Point,
-    direction: Direction,
+impl<T: Tile> Map<T> {
+    fn new(tiles: Vec<T>, width: usize, height: usize) -> Self {
+        Self {
+            _inner: tiles,
+            width,
+            height,
+        }
+    }
+    #[inline(always)]
+    fn calculate_index(&self, point: &Point) -> usize {
+        self.width * point.y + point.x
+    }
+
+    #[inline(always)]
+    fn is_in_range(&self, point: &Point) -> bool {
+        point.x < self.width || point.y < self.height
+    }
+
+    fn get(&self, point: &Point) -> Option<T> {
+        if self.is_in_range(point) {
+            Some(self._inner[self.calculate_index(point)])
+        } else {
+            None
+        }
+    }
+
+    fn set(&mut self, tile: T, point: &Point) {
+        if self.is_in_range(point) {
+            let index = self.calculate_index(point);
+            self._inner[index] = tile;
+        }
+    }
 }
 
-impl Robot {
+impl Map<Tile1> {
+    fn calculate_score(&self) -> usize {
+        let mut score = 0;
+        for y in 0..self.height {
+            for x in 0..self.width {
+                if let Some(Tile1::Box) = self.get(&Point::new(x, y)) {
+                    score += 100 * y + x
+                }
+            }
+        }
+
+        score
+    }
+}
+
+impl Map<Tile2> {
+    fn calculate_score(&self) -> usize {
+        let mut score = 0;
+        for y in 0..self.height {
+            for x in 0..self.width {
+                if let Some(Tile2::BoxLeft) = self.get(&Point::new(x, y)) {
+                    score += 100 * y + x
+                }
+            }
+        }
+
+        score
+    }
+}
+
+impl From<Map<Tile1>> for Map<Tile2> {
+    fn from(value: Map<Tile1>) -> Self {
+        //
+        let Map::<Tile1> {
+            _inner: tiles,
+            width,
+            height,
+        } = value;
+
+        let mut tiles2 = Vec::new();
+
+        for tile in tiles {
+            match tile {
+                Tile1::Floor => {
+                    tiles2.push(Tile2::Floor);
+                    tiles2.push(Tile2::Floor);
+                }
+                Tile1::Wall => {
+                    tiles2.push(Tile2::Wall);
+                    tiles2.push(Tile2::Wall);
+                }
+                Tile1::Box => {
+                    tiles2.push(Tile2::BoxLeft);
+                    tiles2.push(Tile2::BoxRight);
+                }
+            }
+        }
+
+        Map::<Tile2> {
+            _inner: tiles2,
+            width: width * 2,
+            height,
+        }
+    }
+}
+
+struct Robot<T> {
+    position: Point,
+    direction: Direction,
+    _boo: PhantomData<T>,
+}
+
+impl<T: Tile> Robot<T> {
     fn new(x: usize, y: usize, direction: Direction) -> Self {
         Self {
             position: Point::new(x, y),
             direction,
-        }
-    }
-    fn move_box(&self, map: &mut Map, current: Tile, position: Point) -> bool {
-        let next_position = position + self.direction.into();
-        match map.get(&next_position) {
-            Some(Tile::Floor) => {
-                map.set(current, &next_position);
-                true
-            }
-            Some(Tile::Box) => {
-                if self.move_box(map, Tile::Box, position + self.direction.into()) {
-                    map.set(current, &next_position);
-                    true
-                } else {
-                    false
-                }
-            }
-            None | Some(Tile::Wall) => false,
+            _boo: PhantomData,
         }
     }
 
@@ -197,67 +308,102 @@ impl Robot {
     fn turn_in_direction(&mut self, direction: Direction) {
         self.direction = direction;
     }
+}
 
-    fn make_move(&mut self, map: &mut Map, direction: Direction) {
+impl Robot<Tile1> {
+    fn move_box(&self, map: &mut Map<Tile1>, current: Tile1, position: Point) -> bool {
+        let next_position = position + self.direction.into();
+        match map.get(&next_position) {
+            Some(Tile1::Floor) => {
+                map.set(current, &next_position);
+                true
+            }
+            Some(Tile1::Box) => {
+                if self.move_box(map, Tile1::Box, position + self.direction.into()) {
+                    map.set(current, &next_position);
+                    true
+                } else {
+                    false
+                }
+            }
+            None | Some(Tile1::Wall) => false,
+        }
+    }
+
+    fn make_move(&mut self, map: &mut Map<Tile1>, direction: Direction) {
         self.turn_in_direction(direction);
-        if self.move_box(map, Tile::Floor, self.position) {
+        if self.move_box(map, Tile1::Floor, self.position) {
             self.move_in_direction(direction);
         }
     }
 }
 
-impl Map {
-    fn new(tiles: Vec<Tile>, width: usize, height: usize) -> Self {
-        Self {
-            _inner: tiles,
-            width,
-            height,
-        }
-    }
-    #[inline(always)]
-    fn calculate_index(&self, point: &Point) -> usize {
-        self.height * point.y + point.x
-    }
-
-    #[inline(always)]
-    fn is_in_range(&self, point: &Point) -> bool {
-        point.x < self.width || point.y < self.height
-    }
-
-    fn get(&self, point: &Point) -> Option<Tile> {
-        if self.is_in_range(point) {
-            Some(self._inner[self.calculate_index(point)])
-        } else {
-            None
+impl Robot<Tile2> {
+    fn can_move_box(&self, map: &mut Map<Tile2>, position: Point) -> bool {
+        let next_position = position + self.direction.into();
+        match map.get(&next_position) {
+            Some(Tile2::Floor) => true,
+            None | Some(Tile2::Wall) => false,
+            Some(box_tile) => match self.direction {
+                Direction::Up | Direction::Down => match box_tile {
+                    Tile2::BoxLeft => {
+                        self.can_move_box(map, next_position)
+                            && self.can_move_box(map, next_position + Direction::Right.into())
+                    }
+                    Tile2::BoxRight => {
+                        self.can_move_box(map, next_position)
+                            && self.can_move_box(map, next_position + Direction::Left.into())
+                    }
+                    _ => unreachable!(),
+                },
+                _ => self.can_move_box(map, next_position),
+            },
         }
     }
 
-    fn set(&mut self, tile: Tile, point: &Point) {
-        if self.is_in_range(point) {
-            let index = self.calculate_index(point);
-            self._inner[index] = tile;
-        }
-    }
-
-    fn calculate_score(&self) -> usize {
-        let mut score = 0;
-        for y in 0..self.height {
-            for x in 0..self.width {
-                if let Some(Tile::Box) = self.get(&Point::new(x, y)) {
-                    score += 100 * y + x
-                }
+    fn move_box(&self, map: &mut Map<Tile2>, position: Point, tile: Tile2) {
+        let next_position = position + self.direction.into();
+        match map.get(&next_position) {
+            Some(Tile2::Floor) => {
+                map.set(tile, &next_position);
             }
-        }
+            None | Some(Tile2::Wall) => (),
+            Some(box_tile) => match self.direction {
+                Direction::Up | Direction::Down => {
+                    let (other_position, other_box_tile) = match box_tile {
+                        Tile2::BoxLeft => {
+                            (next_position + Direction::Right.into(), Tile2::BoxRight)
+                        }
+                        Tile2::BoxRight => (next_position + Direction::Left.into(), Tile2::BoxLeft),
+                        _ => unreachable!(),
+                    };
+                    self.move_box(map, next_position, box_tile);
+                    self.move_box(map, other_position, other_box_tile);
+                    map.set(Tile2::Floor, &other_position);
+                    map.set(tile, &next_position);
+                }
+                _ => {
+                    self.move_box(map, next_position, box_tile);
+                    map.set(map.get(&position).unwrap(), &next_position);
+                }
+            },
+        };
+    }
 
-        score
+    fn make_move(&mut self, map: &mut Map<Tile2>, direction: Direction) {
+        self.turn_in_direction(direction);
+        if self.can_move_box(map, self.position) {
+            self.move_box(map, self.position, Tile2::Floor);
+            self.move_in_direction(direction);
+        }
     }
 }
 
-fn parse_input(input: &str) -> (Map, Robot, Vec<Direction>) {
+fn parse_input(input: &str) -> (Map<Tile1>, Robot<Tile1>, Vec<Direction>) {
     let width = input.find('\n').expect("Input has no linebreaks");
     let mut iter = input.lines().enumerate();
     let mut tiles = Vec::new();
-    let mut robot = Robot::new(0, 0, Direction::Up);
+    let mut robot = Robot::<Tile1>::new(0, 0, Direction::Up);
     let mut height = 0;
 
     for (y, line) in iter.by_ref() {
@@ -267,7 +413,7 @@ fn parse_input(input: &str) -> (Map, Robot, Vec<Direction>) {
         } else {
             for (x, tile) in line.chars().enumerate() {
                 if tile == '@' {
-                    robot = Robot::new(x, y, Direction::Up);
+                    robot = Robot::<Tile1>::new(x, y, Direction::Up);
                 }
                 tiles.push(tile.into());
             }
@@ -289,17 +435,26 @@ fn parse_input(input: &str) -> (Map, Robot, Vec<Direction>) {
 pub fn solve_1() -> usize {
     let (mut map, mut robot, directions) = parse_input(INPUT);
 
-    print(&map, &robot);
     for direction in directions {
-        println!("{}", char::from(direction));
         robot.make_move(&mut map, direction);
-        print(&map, &robot);
     }
 
     map.calculate_score()
 }
 
-#[test]
-fn test() {
-    println!("{}", solve_1());
+pub fn solve_2() -> usize {
+    let (map, robot, directions) = parse_input(INPUT);
+
+    let mut map: Map<Tile2> = map.into();
+    let mut robot: Robot<Tile2> = Robot::<Tile2> {
+        position: Point::new(robot.position.x * 2, robot.position.y),
+        direction: robot.direction,
+        _boo: PhantomData,
+    };
+
+    for direction in directions {
+        robot.make_move(&mut map, direction);
+    }
+
+    map.calculate_score()
 }

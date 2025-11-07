@@ -46,6 +46,7 @@ fn main() {
     aoc_result!(14, 1, d14::solve_1());
     aoc_result!(14, 2, d14::solve_2());
     aoc_result!(15, 1, d15::solve_1());
+    aoc_result!(15, 2, d15::solve_2());
 }
 
 #[macro_export]
