@@ -3,6 +3,7 @@ use std::{
     ops::{Add, AddAssign},
 };
 
+#[allow(dead_code)]
 static TEST: &str = include_str!("../data/d15_test");
 static INPUT: &str = include_str!("../data/d15");
 
