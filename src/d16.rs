@@ -117,9 +117,9 @@ impl<N, E> DiGraph<N, E> {
         // prepend the edge
         let _ = self.nodes.get(tail)?;
         let head_node = self.nodes.get_mut(head)?;
-        let previous_edge = head_node.edges;
+        let previous_edge = head_node.next_edge;
         let edge = Edge::new(tail, previous_edge, weight);
-        head_node.edges = self.edges.len();
+        head_node.next_edge = Some(self.edges.len());
         self.edges.push(edge);
 
         Some(self.edges.len() - 1)
@@ -131,27 +131,28 @@ impl<N, E> DiGraph<N, E> {
             return Vec::new();
         };
 
-        let mut edge_index = node.edges;
-        while edge_index != usize::MAX {
+        let mut edge_index_opt = node.next_edge;
+        while let Some(edge_index) = edge_index_opt {
             let edge = &self.edges[edge_index];
             neighbours.push(edge.tail);
-            edge_index = edge.next;
+            edge_index_opt = edge.next_edge;
         }
 
         neighbours
     }
 
     fn get_edge(&self, head: usize, tail: usize) -> Option<usize> {
-        let mut edge_index = self.nodes.get(head)?.edges;
+        let mut edge_index_opt = self.nodes.get(head)?.next_edge;
 
-        while edge_index != usize::MAX {
+        while let Some(edge_index) = edge_index_opt {
             let edge = &self.edges[edge_index];
             if edge.tail == tail {
                 return Some(edge_index);
             } else {
-                edge_index = edge.next;
+                edge_index_opt = edge.next_edge;
             }
         }
+
         None
     }
 
@@ -168,28 +169,33 @@ impl<N, E> DiGraph<N, E> {
 struct Node<T> {
     weight: T,
     /// Next outgoing edge
-    edges: usize,
+    next_edge: Option<usize>,
 }
 
 impl<T> Node<T> {
     fn new(weight: T) -> Self {
         Self {
             weight,
-            edges: usize::MAX,
+            next_edge: None,
         }
     }
 }
 
 #[derive(Debug)]
 struct Edge<T> {
+    // Only store the tail, I don't need information about the head.
     tail: usize,
-    next: usize,
+    next_edge: Option<usize>,
     weight: T,
 }
 
 impl<T> Edge<T> {
-    fn new(tail: usize, next: usize, weight: T) -> Self {
-        Self { tail, next, weight }
+    fn new(tail: usize, next: Option<usize>, weight: T) -> Self {
+        Self {
+            tail,
+            next_edge: next,
+            weight,
+        }
     }
 }
 
