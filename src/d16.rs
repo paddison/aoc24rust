@@ -19,9 +19,6 @@ enum Dir {
 }
 
 impl Dir {
-    fn reverse(self) -> Self {
-        DIRS[(self as usize + 2) % NUMBER_OF_DIRS]
-    }
     fn rotate_clockwise(self) -> Self {
         DIRS[(self as usize + 1) % NUMBER_OF_DIRS]
     }
@@ -87,11 +84,19 @@ impl Map {
             false
         }
     }
+
+    fn get_start(&self) -> Point {
+        Point::new(1, self.height - 2)
+    }
+
+    fn get_end(&self) -> Point {
+        Point::new(self.width - 2, 1)
+    }
 }
 
 #[derive(Debug)]
 struct DiGraph<N, E> {
-    nodes: Vec<Nodee<N>>,
+    nodes: Vec<Node<N>>,
     edges: Vec<Edge<E>>,
 }
 
@@ -104,7 +109,7 @@ impl<N, E> DiGraph<N, E> {
     }
 
     fn add_node(&mut self, weight: N) -> usize {
-        self.nodes.push(Nodee::new(weight));
+        self.nodes.push(Node::new(weight));
         self.nodes.len() - 1
     }
 
@@ -113,7 +118,7 @@ impl<N, E> DiGraph<N, E> {
         let _ = self.nodes.get(tail)?;
         let head_node = self.nodes.get_mut(head)?;
         let previous_edge = head_node.edges;
-        let edge = Edge::new(head, tail, previous_edge, weight);
+        let edge = Edge::new(tail, previous_edge, weight);
         head_node.edges = self.edges.len();
         self.edges.push(edge);
 
@@ -160,13 +165,13 @@ impl<N, E> DiGraph<N, E> {
 }
 
 #[derive(Debug)]
-struct Nodee<T> {
+struct Node<T> {
     weight: T,
     /// Next outgoing edge
     edges: usize,
 }
 
-impl<T> Nodee<T> {
+impl<T> Node<T> {
     fn new(weight: T) -> Self {
         Self {
             weight,
@@ -177,45 +182,38 @@ impl<T> Nodee<T> {
 
 #[derive(Debug)]
 struct Edge<T> {
-    head: usize,
     tail: usize,
     next: usize,
     weight: T,
 }
 
 impl<T> Edge<T> {
-    fn new(head: usize, tail: usize, next: usize, weight: T) -> Self {
-        Self {
-            head,
-            tail,
-            next,
-            weight,
-        }
+    fn new(tail: usize, next: usize, weight: T) -> Self {
+        Self { tail, next, weight }
     }
 }
 
-fn get_next(node: &Node, cost: usize, map: &Map) -> Vec<(Node, usize)> {
+fn get_next(node: &State, cost: usize, map: &Map) -> Vec<(State, usize)> {
     let cl = node.dir.rotate_clockwise();
     let ccl = node.dir.rotate_counter_clockwise();
 
     [
-        (Node::new(node.point + node.dir.into(), node.dir), cost + 1),
-        (Node::new(node.point + cl.into(), cl), cost + 1001),
-        (Node::new(node.point + ccl.into(), ccl), cost + 1001),
+        (State::new(node.point + node.dir.into(), node.dir), cost + 1),
+        (State::new(node.point + cl.into(), cl), cost + 1001),
+        (State::new(node.point + ccl.into(), ccl), cost + 1001),
     ]
     .into_iter()
     .filter(|n| map.get(n.0.point))
     .collect::<Vec<_>>()
 }
 
-fn build_graph(map: &Map) -> DiGraph<Node, usize> {
-    let start_node = Node::new(Point::new(1, map.height - 2), Dir::Right);
-    let end_point = Point::new(map.width - 2, 1);
-    let mut seen_nodes = HashMap::new();
-    let mut seen_edges = HashSet::new();
-    let mut graph = DiGraph::<Node, usize>::new();
+fn build_graph(map: &Map) -> DiGraph<State, usize> {
+    let start_node = State::new(map.get_start(), Dir::Right);
+    let end_point = map.get_end();
+    let mut graph = DiGraph::<State, usize>::new();
     let start_index = graph.add_node(start_node);
-    seen_nodes.insert(start_node, start_index);
+    let mut seen_edges = HashSet::new();
+    let mut seen_nodes = HashMap::from([(start_node, start_index)]);
     let mut queue = vec![start_index];
 
     while let Some(origin_index) = queue.pop() {
@@ -225,22 +223,23 @@ fn build_graph(map: &Map) -> DiGraph<Node, usize> {
             continue;
         }
 
-        let mut next_nodes_glob = get_next(&cur, 0, map);
+        let mut next_nodes = get_next(&cur, 0, map);
 
-        while next_nodes_glob.len() == 1 {
-            let (cur, cost) = next_nodes_glob[0];
+        while next_nodes.len() == 1 {
+            let (cur, cost) = next_nodes[0];
             if cur.point == end_point {
-                next_nodes_glob = vec![(cur, cost)];
+                next_nodes = vec![(cur, cost)];
                 break;
             }
-            next_nodes_glob = get_next(&cur, cost, map);
+            next_nodes = get_next(&cur, cost, map);
         }
 
-        if !next_nodes_glob.is_empty() {
-            for (node, cost) in next_nodes_glob {
+        if !next_nodes.is_empty() {
+            for (node, cost) in next_nodes {
                 let tail_index = *seen_nodes
                     .entry(node)
                     .or_insert_with(|| graph.add_node(node));
+
                 if seen_edges.insert((origin_index, tail_index)) {
                     graph.add_edge(origin_index, tail_index, cost);
                     queue.push(tail_index);
@@ -253,88 +252,49 @@ fn build_graph(map: &Map) -> DiGraph<Node, usize> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct Node {
+struct State {
     point: Point,
     dir: Dir,
 }
 
-impl Node {
+impl State {
     fn new(point: Point, dir: Dir) -> Self {
         Self { point, dir }
     }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct WeightedNode {
-    node: Node,
-    score: usize,
-}
-
-impl WeightedNode {
-    fn new(node: Node, score: usize) -> Self {
-        Self { node, score }
-    }
-}
-
-impl Ord for WeightedNode {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.score.cmp(&other.score).reverse()
-    }
-}
-
-impl PartialOrd for WeightedNode {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-fn is_cheapest(node: Node, score: usize, scores: &mut HashMap<Node, usize>) -> bool {
-    let min_score = scores.entry(node).or_insert(usize::MAX);
-
-    if score <= *min_score {
-        *min_score = score;
-        true
-    } else {
-        false
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct State {
+struct WeightedState {
     node_index: usize,
     cost: usize,
 }
 
-impl State {
+impl WeightedState {
     fn new(node_index: usize, cost: usize) -> Self {
         Self { node_index, cost }
     }
 }
 
-impl Ord for State {
+impl Ord for WeightedState {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.cost.cmp(&other.cost).reverse()
     }
 }
 
-impl PartialOrd for State {
+impl PartialOrd for WeightedState {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-fn dijkstra_graph(graph: &DiGraph<Node, usize>, end: Point) -> (usize, usize, Vec<Vec<usize>>) {
-    let start_state = State::new(0, 0);
-
-    let mut queue = BinaryHeap::new();
+fn dijkstra_graph(graph: &DiGraph<State, usize>, end: Point) -> (usize, usize, Vec<Vec<usize>>) {
+    let mut queue = BinaryHeap::from([WeightedState::new(0, 0)]);
     let mut min = usize::MAX;
     let mut costs = vec![usize::MAX; graph.nodes.len()];
-    let mut predecessor_lookup = graph.nodes.iter().map(|_| Vec::new()).collect::<Vec<_>>();
+    let mut predecessor_lookup = vec![Vec::new(); graph.nodes.len()];
     let mut end_index = usize::MAX;
 
-    queue.push(start_state);
-
-    while let Some(State { node_index, cost }) = queue.pop() {
+    while let Some(WeightedState { node_index, cost }) = queue.pop() {
         let node = graph.get_node_weight(node_index).unwrap();
 
         if cost > min {
@@ -352,10 +312,10 @@ fn dijkstra_graph(graph: &DiGraph<Node, usize>, end: Point) -> (usize, usize, Ve
             if costs[neighbor] > next_cost {
                 costs[neighbor] = next_cost;
                 predecessor_lookup[neighbor] = vec![node_index];
-                queue.push(State::new(neighbor, next_cost));
+                queue.push(WeightedState::new(neighbor, next_cost));
             } else if costs[neighbor] == next_cost {
                 predecessor_lookup[neighbor].push(node_index);
-                queue.push(State::new(neighbor, next_cost));
+                queue.push(WeightedState::new(neighbor, next_cost));
             }
         }
     }
@@ -363,120 +323,43 @@ fn dijkstra_graph(graph: &DiGraph<Node, usize>, end: Point) -> (usize, usize, Ve
     (min, end_index, predecessor_lookup)
 }
 
-fn dijkstra(map: &Map) -> (usize, HashMap<Node, Vec<Node>>) {
-    let start = Point::new(1, map.height - 2);
-    let end = Point::new(map.width - 2, 1);
-    let mut queue = BinaryHeap::new();
-    let mut scores = HashMap::<Node, usize>::new();
-    let mut min = usize::MAX;
-    let mut predecessor_lookup = HashMap::<Node, Vec<Node>>::new();
-
-    queue.push(WeightedNode::new(Node::new(start, Dir::Right), 0));
-
-    while let Some(WeightedNode {
-        node: Node { point, dir },
-        score,
-    }) = queue.pop()
-    {
-        if score > min {
-            return (min, predecessor_lookup);
-        }
-
-        if point == end {
-            if min > score {
-                min = score
-            }
-            continue;
-        }
-
-        for (next_dir, next_score) in [
-            (dir, score + 1),
-            (dir.rotate_clockwise(), score + 1001),
-            (dir.rotate_counter_clockwise(), score + 1001),
-        ] {
-            let next_point = point + next_dir.into();
-            if map.get(next_point) {
-                let next_node = Node::new(next_point, next_dir);
-                if is_cheapest(next_node, next_score, &mut scores) {
-                    predecessor_lookup
-                        .entry(next_node)
-                        .or_insert(Vec::new())
-                        .push(Node::new(point, dir));
-                    queue.push(WeightedNode::new(next_node, next_score));
-                }
-            }
-        }
-    }
-
-    unreachable!();
-}
-
 fn count_nodes_graph(
-    graph: &DiGraph<Node, usize>,
+    graph: &DiGraph<State, usize>,
     end_index: usize,
     predecessor_lookup: Vec<Vec<usize>>,
 ) -> usize {
     let mut number_of_positions = 0;
-    let mut sub = 0;
-    let mut seen = vec![false; graph.edges.len()];
-    let mut seen2 = vec![false; graph.nodes.len()];
+    let mut seen_edges = vec![false; graph.edges.len()];
+    let mut seen_nodes = vec![false; graph.nodes.len()];
 
     let mut queue = vec![end_index];
 
     while let Some(node_index) = queue.pop() {
-        if seen[node_index] {
-            continue;
-        }
+        if seen_nodes[node_index] {
+            number_of_positions -= 1;
+        } else {
+            seen_nodes[node_index] = true;
 
-        let mut a = graph.get_node_weight(node_index).unwrap().point;
+            let predecessors = predecessor_lookup[node_index]
+                .iter()
+                .collect::<HashSet<_>>();
 
-        let predecessors = predecessor_lookup[node_index]
-            .iter()
-            .collect::<HashSet<_>>();
-        //println!("{:?}", predecessors);
-        for predecessor in &predecessors {
-            let mut b = graph.get_node_weight(**predecessor).unwrap().point;
-            let edge = graph.get_edge(**predecessor, node_index).unwrap();
-            if !seen[edge] {
-                seen[edge] = true;
-                let weight = graph.get_edge_weight(edge).unwrap();
-                number_of_positions += weight % 1000; //graph.get_edge_weight(edge).unwrap() % 1000;
-                println!("{:?}->{:?}", b, a);
-                queue.push(**predecessor);
-            }
-        }
-        if predecessors.len() > 1 {
-            number_of_positions -= predecessors.len() - 1;
-        }
-
-        seen2[node_index] = true;
-    }
-
-    number_of_positions
-}
-
-fn count_nodes(map: Map, predecessor_map: HashMap<Node, Vec<Node>>) -> usize {
-    let end = Point::new(map.width - 2, 1);
-    let mut seen = HashSet::new();
-    let mut paths = HashSet::new();
-    let mut queue = Vec::new();
-    paths.insert(end);
-
-    for end in [Node::new(end, Dir::Up), Node::new(end, Dir::Right)] {
-        if let Some(predecessor) = predecessor_map.get(&end) {
-            predecessor.iter().for_each(|n| queue.push(*n));
-            while let Some(n) = queue.pop() {
-                if seen.insert(n) {
-                    paths.insert(n.point);
-                    for nn in predecessor_map.get(&n).unwrap_or(&Vec::new()) {
-                        queue.push(*nn);
-                    }
+            for predecessor in &predecessors {
+                let edge = graph.get_edge(**predecessor, node_index).unwrap();
+                if !seen_edges[edge] {
+                    seen_edges[edge] = true;
+                    number_of_positions += graph.get_edge_weight(edge).unwrap() % 1000;
+                    queue.push(**predecessor);
                 }
             }
+
+            if predecessors.len() > 1 {
+                number_of_positions -= (predecessors.len() - 1) * 2;
+            }
         }
     }
 
-    paths.len()
+    number_of_positions + 1
 }
 
 fn parse(input: &str) -> Map {
@@ -493,45 +376,15 @@ fn parse(input: &str) -> Map {
 }
 
 pub fn solve_1() -> usize {
-    dijkstra(&parse(INPUT)).0
+    let map = parse(INPUT);
+    let graph = build_graph(&map);
+    let (min, _, _) = dijkstra_graph(&graph, map.get_end());
+    min
 }
 
 pub fn solve_2() -> usize {
-    let map = parse(TEST);
+    let map = parse(INPUT);
     let graph = build_graph(&map);
-    let end = Point::new(map.width - 2, 1);
-    let (min, end_index, lookup) = dijkstra_graph(&graph, end);
+    let (_, end_index, lookup) = dijkstra_graph(&graph, map.get_end());
     count_nodes_graph(&graph, end_index, lookup)
-}
-
-#[test]
-fn test() {
-    solve_2();
-    let map = parse(TEST);
-    let graph = build_graph(&map);
-    let end = Point::new(map.width - 2, 1);
-    for (node_index, node) in graph.nodes.iter().enumerate() {
-        let neighbors = graph
-            .get_neighbours(node_index)
-            .into_iter()
-            .map(|idx| graph.get_node_weight(idx).unwrap())
-            .collect::<Vec<_>>();
-        println!(
-            "({},{}), {:?}",
-            node.weight.point.x, node.weight.point.y, node.weight.dir
-        );
-        for neighbor in neighbors {
-            println!(
-                "-->({},{}), {:?}",
-                neighbor.point.x, neighbor.point.y, neighbor.dir
-            );
-        }
-    }
-
-    let (min, end_index, lookup) = dijkstra_graph(&graph, end);
-    println!("{min}");
-
-    for n in &graph.edges {
-        println!("{:?}", n);
-    }
 }
