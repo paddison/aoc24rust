@@ -117,6 +117,7 @@ pub fn solve_1() -> isize {
         .sum()
 }
 
+#[allow(clippy::manual_inspect)]
 pub fn solve_2() -> isize {
     parse_input(INPUT)
         .iter_mut()

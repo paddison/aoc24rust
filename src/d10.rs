@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+#[allow(dead_code)]
 static TEST: &str = include_str!("../data/d10_test");
 static INPUT: &str = include_str!("../data/d10");
 
@@ -53,9 +54,12 @@ fn check_and_push_on_stack(
     current_height: u8,
     stack: &mut Vec<(usize, usize, u8)>,
 ) {
-    map.get(x, y)
+    if let Some(next_height) = map
+        .get(x, y)
         .filter(|next_height| is_one_higher(current_height, *next_height))
-        .map(|next_height| stack.push((x, y, next_height)));
+    {
+        stack.push((x, y, next_height))
+    }
 }
 
 fn count_trails(map: &Map, x: usize, y: usize, is_part_1: bool) -> usize {
