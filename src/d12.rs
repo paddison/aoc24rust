@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
     ops::Add,
-    usize,
 };
 
 #[allow(dead_code)]
@@ -36,9 +35,9 @@ impl Direction {
     }
 }
 
-impl Into<Point<isize>> for Direction {
-    fn into(self) -> Point<isize> {
-        match self {
+impl From<Direction> for Point<isize> {
+    fn from(val: Direction) -> Self {
+        match val {
             Direction::Right => Point { x: 1, y: 0 },
             Direction::Down => Point { x: 0, y: 1 },
             Direction::Left => Point { x: -1, y: 0 },
@@ -132,7 +131,7 @@ impl Region {
         for start_position in self.positions.iter().copied() {
             for start_direction in is_edge_position(&start_position, &lookup)
                 .into_iter()
-                .filter_map(|dir| dir)
+                .flatten()
             {
                 if !seen.contains(&(start_position, start_direction)) {
                     number_of_sides += determine_number_of_edges(

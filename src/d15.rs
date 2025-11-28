@@ -168,6 +168,7 @@ struct Map<T: Tile> {
     height: usize,
 }
 
+#[allow(dead_code)]
 fn print<T: Into<char> + Tile>(map: &Map<T>, robot: &Robot<T>) {
     let mut string = String::new();
 

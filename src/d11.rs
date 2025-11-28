@@ -78,7 +78,6 @@ impl Display for SplitVec<usize> {
                 }
                 current = node.next;
             } else {
-                println!("{}", current);
                 break write!(f, "{buffer}");
             }
         }
@@ -172,15 +171,16 @@ pub fn solve_2() -> usize {
     for _ in 0..75 {
         let mut updated_id_to_count = id_to_count.clone();
         assert_eq!(id_to_count.len(), id_to_number.len());
+        let max_id = id_count;
 
-        for id in 0..id_count {
+        for id in 0..max_id {
             let count = id_to_count[id];
             let number = id_to_number[id];
             // Calculate how the number transforms in the next loop
             let next_numbers = if number == 0 {
                 [Some(1), None]
             } else {
-                match split_number(number as usize) {
+                match split_number(number) {
                     None => [Some(number * 2024), None],
                     Some(split) => [Some(number / split), Some(number % split)],
                 }
