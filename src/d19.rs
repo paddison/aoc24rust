@@ -1,5 +1,6 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
+#[allow(dead_code)]
 static TEST: &str = include_str!("../data/d19_test");
 static INPUT: &str = include_str!("../data/d19");
 
@@ -26,7 +27,7 @@ fn parse(input: &str) -> (HashSet<&str>, Vec<&str>, usize) {
     )
 }
 
-fn can_create_pattern_recurse(
+fn can_create_pattern(
     towels: &HashSet<&'static str>,
     pattern: &'static str,
     max_number_of_stripes: usize,
@@ -36,14 +37,12 @@ fn can_create_pattern_recurse(
         return true;
     }
 
-    let min = max_number_of_stripes.min(pattern.len());
-
-    for substring_len in 1..min + 1 {
+    for substring_len in 1..max_number_of_stripes.min(pattern.len()) + 1 {
         if towels.contains(&pattern[..substring_len]) {
             let next_pattern = &pattern[substring_len..];
 
             if seen.insert(next_pattern)
-                && can_create_pattern_recurse(
+                && can_create_pattern(
                     towels,
                     &pattern[substring_len..],
                     max_number_of_stripes,
@@ -58,18 +57,52 @@ fn can_create_pattern_recurse(
     false
 }
 
+fn count_number_of_possibilities(
+    towels: &HashSet<&'static str>,
+    pattern: &'static str,
+    max_number_of_stripes: usize,
+    seen: &mut HashMap<&'static str, usize>,
+) -> usize {
+    (1..max_number_of_stripes.min(pattern.len()) + 1)
+        .filter(|substring_len| towels.contains(&pattern[..*substring_len]))
+        .map(|substring_len| &pattern[substring_len..])
+        .map(|next_pattern| {
+            if next_pattern.is_empty() {
+                1
+            } else if !seen.contains_key(next_pattern) {
+                let number_of_possibilities = count_number_of_possibilities(
+                    towels,
+                    next_pattern,
+                    max_number_of_stripes,
+                    seen,
+                );
+                seen.insert(next_pattern, number_of_possibilities);
+                number_of_possibilities
+            } else {
+                *seen.get_mut(&next_pattern).unwrap()
+            }
+        })
+        .sum()
+}
+
 pub fn solve_1() -> usize {
     let (towels, patterns, max_number_of_stripes) = parse(INPUT);
 
     patterns
         .iter()
         .filter(|pattern| {
-            can_create_pattern_recurse(&towels, pattern, max_number_of_stripes, &mut HashSet::new())
+            can_create_pattern(&towels, pattern, max_number_of_stripes, &mut HashSet::new())
         })
         .count()
 }
 
-#[test]
-fn test() {
-    println!("{}", solve_1());
+pub fn solve_2() -> usize {
+    let (towels, patterns, max_number_of_stripes) = parse(INPUT);
+
+    patterns
+        .iter()
+        .map(|p| {
+            count_number_of_possibilities(&towels, p, max_number_of_stripes, &mut HashMap::new())
+        })
+        .sum()
 }
