@@ -1,14 +1,14 @@
 use std::{
     collections::{HashSet, VecDeque},
     fmt::Display,
-    iter::FilterMap,
     ops::{Add, AddAssign},
-    str::Lines,
 };
 
+#[allow(dead_code)]
 static TEST: &str = include_str!("../data/d18_test");
 static INPUT: &str = include_str!("../data/d18");
 
+#[allow(dead_code)]
 const SIZE_TEST: usize = 7;
 const SIZE: usize = 71;
 
