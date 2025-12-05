@@ -1,11 +1,14 @@
 use std::{
+    collections::{HashMap, VecDeque},
     fmt::Display,
     ops::{Add, AddAssign},
 };
 
 static TEST: &str = include_str!("../data/d20_test");
+static INPUT: &str = include_str!("../data/d20");
 
 const WIDTH_TEST: usize = 15;
+const WIDTH: usize = 141;
 
 const DIRS: [Point; 4] = [
     Point::new(0, usize::MAX),
@@ -173,6 +176,18 @@ impl<N, E, const NN: usize, const NE: usize> Graph<N, E, NN, NE> {
     }
 }
 
+impl<N: Eq + PartialEq, E, const NN: usize, const NE: usize> Graph<N, E, NN, NE> {
+    fn find_node_by_weight(&self, weight: N) -> Option<usize> {
+        for (i, n) in self.nodes.iter().enumerate() {
+            if n.weight == weight {
+                return Some(i);
+            }
+        }
+
+        None
+    }
+}
+
 struct Neighbors<'a, N, E, const NN: usize, const NE: usize> {
     graph: &'a Graph<N, E, NN, NE>,
     edge: Option<usize>,
@@ -206,7 +221,7 @@ impl<'a, N, E, const NN: usize, const NE: usize> Iterator for Neighbors<'a, N, E
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 enum Tile {
     Start,
     End,
@@ -227,7 +242,7 @@ impl From<char> for Tile {
 }
 
 fn parse<const NN: usize, const NE: usize>(input: &str) -> Graph<Tile, (), NN, NE> {
-    let mut graph = Graph::new();
+    let mut graph = Graph::default();
     let width = input.find('\n').unwrap_or(0);
     let height = input.len() / (width + 1);
 
@@ -265,8 +280,14 @@ struct State {
 }
 
 fn dfs<const NN: usize, const NE: usize>(graph: &Graph<Tile, (), NN, NE>) -> usize {
-    let mut queue = vec![(46, 0)];
-    let mut seen = vec![false; NE * NE];
+    let start = graph.find_node_by_weight(Tile::Start);
+
+    if start.is_none() {
+        return 0;
+    }
+
+    let mut queue = vec![(start.unwrap(), 0)];
+    let mut seen = vec![false; NN * NN];
 
     while let Some((node_index, cost)) = queue.pop() {
         if seen[node_index] {
@@ -287,11 +308,49 @@ fn dfs<const NN: usize, const NE: usize>(graph: &Graph<Tile, (), NN, NE>) -> usi
     0
 }
 
+fn dfs_cheat<const NN: usize, const NE: usize>(
+    max: usize,
+    when: usize,
+    graph: &Graph<Tile, (), NN, NE>,
+) -> Vec<usize> {
+    let start = graph.find_node_by_weight(Tile::Start);
+
+    if start.is_none() {
+        return Vec::new();
+    }
+
+    let mut queue = VecDeque::from([(start.unwrap(), 0, 0)]);
+    let mut costs = Vec::new();
+
+    while let Some((node_index, cost, prev)) = queue.pop_front() {
+        if cost >= max {
+            break;
+        }
+        for neighbor in graph.get_neighbors(node_index) {
+            match graph.get_node(neighbor) {
+                Tile::Wall if when == cost => queue.push_back((neighbor, cost + 1, node_index)),
+                Tile::Start | Tile::Wall => continue,
+                Tile::End => costs.push(cost + 1), //return cost + 1,
+                Tile::Floor if when == cost => continue,
+                Tile::Floor if neighbor != prev => {
+                    queue.push_back((neighbor, cost + 1, node_index))
+                }
+                _ => continue,
+            }
+        }
+    }
+
+    costs
+}
+
 pub fn solve_1() -> usize {
-    const NUMBER_OF_NODES: usize = WIDTH_TEST * WIDTH_TEST;
+    const NUMBER_OF_NODES: usize = WIDTH * WIDTH;
     const NUMBER_OF_EDGES: usize = NUMBER_OF_NODES * 4;
-    let g = parse::<NUMBER_OF_NODES, NUMBER_OF_EDGES>(TEST);
-    dfs::<NUMBER_OF_NODES, NUMBER_OF_EDGES>(&g)
+    let g = parse::<NUMBER_OF_NODES, NUMBER_OF_EDGES>(INPUT);
+    let maximum_steps = dfs::<NUMBER_OF_NODES, NUMBER_OF_EDGES>(&g);
+    (0..maximum_steps - 100)
+        .flat_map(|i| dfs_cheat(maximum_steps - 100, i, &g))
+        .count()
 }
 
 #[test]
