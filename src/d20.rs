@@ -27,6 +27,17 @@ impl Point {
     const fn new(x: usize, y: usize) -> Self {
         Self { x, y }
     }
+
+    fn flatten(&self, width: usize) -> usize {
+        (self.y * width).wrapping_add(self.x)
+    }
+
+    fn unflatten(n: usize, width: usize) -> Self {
+        Self {
+            x: n % width,
+            y: n / width,
+        }
+    }
 }
 
 impl TryFrom<&str> for Point {
@@ -352,8 +363,240 @@ pub fn solve_1() -> usize {
         .flat_map(|i| dfs_cheat(maximum_steps - 100, i, &g))
         .count()
 }
+// From each node, store how much longer it is to reach the end
+// Each time a cheat is run, only check where it ends up, then calculate the time it will take to get to the end
+// Don't run a search through the whole thing, but only per cheat
+// For each cheat, check where it ends up
+
+// S: width == height, S % 8 == 0, S = width * height / 8
+#[derive(Debug)]
+struct BitMap<const S: usize> {
+    tiles: [u8; S],
+}
+
+struct BitMapIdx {
+    array_index: usize,
+    indexed_bit_in_array_index: u8,
+}
+
+impl<const S: usize> BitMap<S> {
+    const DIM: usize = (S * 8) >> ((S * 8).trailing_zeros() / 2);
+
+    fn new() -> Self {
+        Self { tiles: [0; S] }
+    }
+
+    fn is_in_bounds(&self, x: usize, y: usize) -> bool {
+        x < Self::DIM && y < Self::DIM
+    }
+
+    fn get_index(&self, x: usize, y: usize) -> BitMapIdx {
+        let indexed_bit = y * Self::DIM + x;
+        let array_index = indexed_bit / 8;
+        let indexed_bit_in_array_index = 1 << (7 - (indexed_bit % 8));
+        BitMapIdx {
+            array_index,
+            indexed_bit_in_array_index,
+        }
+    }
+
+    fn get(&self, x: usize, y: usize) -> bool {
+        if self.is_in_bounds(x, y) {
+            let idx = self.get_index(x, y);
+            self.tiles[idx.array_index] & idx.indexed_bit_in_array_index != 0
+        } else {
+            false
+        }
+    }
+
+    fn set(&mut self, x: usize, y: usize) {
+        if self.is_in_bounds(x, y) {
+            let idx = self.get_index(x, y);
+            self.tiles[idx.array_index] |= idx.indexed_bit_in_array_index
+        }
+    }
+}
+
+impl<const D: usize> Display for BitMap<D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let width = D / Self::DIM;
+        let height = D / width;
+        let mut s = String::new();
+        for y in 0..height {
+            for x in 0..width {
+                s.push_str(&format!("{:08b}", self.tiles[y * width + x]));
+            }
+            s.push('\n');
+        }
+
+        write!(f, "{}", s)
+    }
+}
+
+fn parse_bit_map<const D: usize>(input: &str) -> (BitMap<D>, Point, Point) {
+    let mut bit_map = BitMap::new();
+    let mut start = Point::new(0, 0);
+    let mut end = Point::new(0, 0);
+
+    for (y, line) in input.lines().enumerate() {
+        for (x, tile) in line.chars().enumerate() {
+            match tile {
+                '#' => (),
+                tile => {
+                    bit_map.set(x, y);
+                    match tile {
+                        'S' => start = Point::new(x, y),
+                        'E' => end = Point::new(x, y),
+                        _ => (),
+                    }
+                }
+            }
+        }
+    }
+
+    (bit_map, start, end)
+}
+
+fn dfs_bit_map<const D: usize, const E: usize>(map: &BitMap<D>, start: Point) -> [Option<u16>; E] {
+    let mut distances = [None; E];
+    let mut current_opt = Some((start, 0));
+
+    while let Some((current, cost)) = current_opt.take() {
+        distances[current.flatten(BitMap::<D>::DIM)] = Some(cost);
+
+        for dir in DIRS {
+            let next = current + dir;
+            if map.get(next.x, next.y) && distances[next.flatten(BitMap::<D>::DIM)].is_none() {
+                current_opt = Some((next, cost + 1));
+            }
+        }
+    }
+
+    distances
+}
+
+struct BlaIterator {
+    center: Point,
+    current: Point,
+    length: usize,
+    i: usize,
+}
+
+impl BlaIterator {
+    const DIRS: [Point; 4] = [
+        Point::new(usize::MAX, 1),
+        Point::new(usize::MAX, usize::MAX),
+        Point::new(1, usize::MAX),
+        Point::new(1, 1),
+    ];
+
+    fn new(center: Point, length: usize) -> Self {
+        Self {
+            current: Self::start_internal(center, length),
+            center,
+            length,
+            i: 0,
+        }
+    }
+
+    fn start_internal(center: Point, length: usize) -> Point {
+        Point::new(center.x + length, center.y)
+    }
+
+    fn start(&self) -> Point {
+        Self::start_internal(self.center, self.length)
+    }
+}
+
+impl Iterator for BlaIterator {
+    type Item = Point;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.i == 4 {
+            None
+        } else {
+            let next = self.current;
+            self.current = self.current + Self::DIRS[self.i];
+            if self.current.x == self.center.x || self.current.y == self.center.y {
+                self.i += 1;
+            }
+            Some(next)
+        }
+    }
+}
+
+fn cheat<const D: usize>(
+    distances: &[Option<u16>],
+    cheat_length: u16,
+    total_cost: u16,
+    delim: u16,
+) {
+    let filter_costs = |(i, cost_opt): (usize, &Option<u16>)| match *cost_opt {
+        Some(cost) => Some((i, cost)),
+        _none => None,
+    };
+
+    let mut bla = HashMap::<u16, u16>::new();
+    let dim = BitMap::<D>::DIM;
+
+    for (start_flat, cost) in distances
+        .iter()
+        .enumerate()
+        .filter_map(filter_costs)
+        .filter(|(_, cost)| *cost < total_cost - delim)
+    {
+        let start = Point::unflatten(start_flat, dim);
+
+        for length in 2..=cheat_length {
+            let iter = BlaIterator::new(start, length as usize);
+            for cheat_end in iter
+                .filter(|point| point.x < dim && point.y < dim)
+                .map(|point| point.flatten(BitMap::<D>::DIM))
+            {
+                if let Some(cost2) = distances[cheat_end] {
+                    if cost2 > cost + length {
+                        let blub = cost2 - cost - length;
+                        if blub >= delim {
+                            *bla.entry(blub).or_insert(0) += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut count = 0usize;
+    for (k, v) in bla {
+        count += v as usize;
+        println!("There are {} cheats that save {} picoseconds.", v, k);
+    }
+
+    println!("{count}");
+}
 
 #[test]
 fn test() {
-    println!("{}", solve_1());
+    const E: usize = 16 * 16;
+    const D: usize = 16 * 16 / 8;
+
+    println!("{}", D);
+    println!("{}", (D * 8) >> ((D * 8).trailing_zeros() / 2));
+    let (m, start, end) = parse_bit_map::<D>(TEST);
+
+    let distances = dfs_bit_map::<D, E>(&m, start);
+    let total_cost = distances[end.flatten(BitMap::<D>::DIM)].unwrap();
+    println!("{total_cost}");
+
+    cheat::<D>(&distances, 20, total_cost, 50);
+
+    const E2: usize = 256 * 256;
+    const D2: usize = 256 * 256 / 8;
+
+    let (m, start, end) = parse_bit_map::<D2>(INPUT);
+
+    let distances = dfs_bit_map::<D2, E2>(&m, start);
+    let total_cost = distances[end.flatten(BitMap::<D2>::DIM)].unwrap();
+    println!("{total_cost}");
+
+    cheat::<D2>(&distances, 20, total_cost, 100);
 }
